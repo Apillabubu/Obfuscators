@@ -1,0 +1,129 @@
+local Player: Player = game.Players.LocalPlayer
+local Event = game:GetService("ReplicatedStorage").QTEEvent
+
+
+
+local Fish = function()
+    local Character = Player.Character or Player.CharacterAdded:Wait()
+    local RootPart = Character:WaitForChild("Humanoid").RootPart
+    local Event = game:GetService("ReplicatedStorage").Remotes.UseTool
+    Event:FireServer(
+        "FishingRod",
+        "Primary",
+        (RootPart.CFrame * CFrame.new(0,0,-20)).Position
+    )
+end
+
+local HasTool = function()
+    local tool = nil
+    for i,v in Player.Backpack:GetChildren() do
+        if v.Name == "FishingRod" then
+            local Character = Player.Character or Player.CharacterAdded:Wait()
+            local Humanoid: Humanoid = Character:FindFirstChild("Humanoid")
+            tool = v
+            print("has tool in inventory")
+            return false
+            --Humanoid:EquipTool(v)
+        end
+    end
+
+    for i,v in Player.Character:GetChildren() do
+        if v:IsA("Tool") and v.Name == "FishingRod" then
+            --print("FoundTool in Character")
+            return true
+        end
+    end
+    print("Please Purchase tool in shop!")
+    return false
+end
+
+
+local maxDistance = 100
+
+local collectChests = function()
+    for i,v in workspace.Chests:GetDescendants() do
+        if v:IsA("ProximityPrompt") then
+            if v.Enabled then
+                if maxDistance >= Player:DistanceFromCharacter(v.Parent.PrimaryPart.Position) then
+                    fireproximityprompt(v)
+                    print("Found Chest attempting to grab it")
+                end
+            end
+        end
+    end
+end
+
+local shouldFish = true
+_G.lockPlace = true
+local autofinish = function() -- what the fuck was I thinking
+    if not shouldFish then return end
+    shouldFish = false
+    Fish()
+    task.wait(3)
+    local FindBall = function()
+        local closest = math.huge
+        local ball = nil
+        for i,v in workspace:GetChildren() do
+            if v:IsA("Part") then
+                if v:FindFirstChild("RopeConstraint") then
+                    local newpart = Player:DistanceFromCharacter(v.Position)
+                    if closest > newpart and newpart then
+                        closest = newpart
+                        ball = v
+                    end
+                end
+            end
+        end
+        return ball
+    end
+    local ball = FindBall() -- I wanna die and stuff
+    if not ball then shouldFish = true; return end
+    if Player:DistanceFromCharacter(ball.Position) <= maxDistance then
+        print("Found ball")
+    else
+        print("Couldn't Find Ball to set Distance")
+        shouldFish = true
+        return
+    end
+
+    ball.ChildAdded:Connect(function(child) -- brain dead
+        print(child)
+        if child:IsA("Sound") then
+            for i,v in Player.Character:GetChildren() do
+                if v:IsA("Tool") then
+                    Fish()
+                    task.wait(2)
+                    local Event = game:GetService("ReplicatedStorage").QTEEvent -- incase a chest spawn event happens
+                    Event:FireServer(
+                        "MashingSuccess"
+                    )
+                    shouldFish = true
+                    task.wait(1)
+                    collectChests()
+                    print("Finished: Setting true")
+                end
+            end
+        end
+    end)
+
+
+    ball.AncestryChanged:Connect(function(_, parent) -- in case ball vanishes
+        print("Ball removed setting to fish again")
+        task.wait(2)
+        if shouldFish then return end
+        shouldFish = true
+    end) 
+end
+
+local HumanoidRootPart = Player.Character:WaitForChild("HumanoidRootPart")
+local PlayerPos = HumanoidRootPart.CFrame
+while true do
+    task.wait()
+    if _G.lockPlace then
+        HumanoidRootPart.CFrame = PlayerPos
+    end
+    if not HasTool() then break end
+    if not shouldFish then continue end
+    print(">~<")
+    autofinish()
+end
